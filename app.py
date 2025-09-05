@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request  # ⬅️ ADICIONE 'request' aqui
 from flask_cors import CORS
 from pymongo import MongoClient
 from datetime import datetime
@@ -16,6 +16,13 @@ client = MongoClient(MONGODB_URI)
 db = client.iot_database
 devices_collection = db.devices
 
+# ⬇️ COLE A FUNÇÃO handle_http AQUI (ANTES das rotas)
+@app.before_request
+def handle_http():
+    if request.url.startswith('http://'):
+        # Permite HTTP sem redirecionar - não faz nada
+        pass
+
 @app.route('/check-access', methods=['GET'])
 def check_access():
     try:
@@ -24,24 +31,44 @@ def check_access():
         
         if device and device.get("allowed", False):
             allowed = True
+            status_msg = "access_granted"
         else:
             allowed = False
+            status_msg = "access_denied"
         
         return jsonify({
             "allowed": allowed,
-            "status": "success",
-            "server_region": "sao-paulo"
+            "status": status_msg,
+            "server": "render",
+            "timestamp": datetime.now().isoformat()
         })
         
     except Exception as e:
         return jsonify({
             "error": str(e),
-            "status": "error"
+            "status": "error",
+            "timestamp": datetime.now().isoformat()
         }), 500
 
 @app.route('/test', methods=['GET'])
 def test():
-    return jsonify({"message": "API com MongoDB funcionando!"})
+    return jsonify({
+        "message": "API Flask + MongoDB funcionando!",
+        "status": "success", 
+        "protocol": "http"
+    })
+
+@app.route('/')
+def home():
+    return jsonify({
+        "message": "Bem-vindo à API IoT",
+        "endpoints": {
+            "test": "/test", 
+            "check_access": "/check-access"
+        },
+        "note": "HTTP permitido para dispositivos IoT"
+    })
 
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
